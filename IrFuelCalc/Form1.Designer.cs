@@ -50,6 +50,7 @@
             this.m_tooltip = new System.Windows.Forms.ToolTip(this.components);
             this.label4 = new System.Windows.Forms.Label();
             this.nudFuelMult = new System.Windows.Forms.NumericUpDown();
+            this.cbSpreadFuel = new System.Windows.Forms.CheckBox();
             ((System.ComponentModel.ISupportInitialize)(this.nudLapOffset)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.nudFuelMult)).BeginInit();
             this.SuspendLayout();
@@ -278,11 +279,22 @@
             0,
             0});
             // 
+            // cbSpreadFuel
+            // 
+            this.cbSpreadFuel.AutoSize = true;
+            this.cbSpreadFuel.Location = new System.Drawing.Point(16, 449);
+            this.cbSpreadFuel.Name = "cbSpreadFuel";
+            this.cbSpreadFuel.Size = new System.Drawing.Size(118, 17);
+            this.cbSpreadFuel.TabIndex = 20;
+            this.cbSpreadFuel.Text = "Evenly Spread Fuel";
+            this.cbSpreadFuel.UseVisualStyleBackColor = true;
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(391, 553);
+            this.Controls.Add(this.cbSpreadFuel);
             this.Controls.Add(this.label4);
             this.Controls.Add(this.nudFuelMult);
             this.Controls.Add(this.label3);
@@ -336,6 +348,7 @@
         private System.Windows.Forms.ToolTip m_tooltip;
         private System.Windows.Forms.Label label4;
         private System.Windows.Forms.NumericUpDown nudFuelMult;
+        private System.Windows.Forms.CheckBox cbSpreadFuel;
     }
 }
 

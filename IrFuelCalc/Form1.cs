@@ -71,8 +71,10 @@ namespace IrFuelCalc
                 var greenFlag = data["settings"]["green_flag"];
                 var lapOffset = data["settings"]["lap_offset"];
                 var fuelMult = data["settings"]["fuel_mult"];
+                var spreadFuel = data["settings"].ContainsKey( "spread_fuel" ) ? data["settings"]["spread_fuel"] : "False";
 
                 cbOnlyGreen.Checked = bool.Parse( greenFlag.Trim() );
+                cbSpreadFuel.Checked = bool.Parse( spreadFuel.Trim() );
                 nudLapOffset.Value = decimal.Parse( lapOffset.Trim(), CultureInfo.InvariantCulture );
                 nudFuelMult.Value = decimal.Parse( fuelMult.Trim(), CultureInfo.InvariantCulture );
             }
@@ -147,8 +149,22 @@ namespace IrFuelCalc
                     m_totalFuelRequired = avgFuel * (m_estimatedLaps + (int)nudLapOffset.Value);
                     m_estimatedStops = (int) Math.Ceiling( m_totalFuelRequired / m_maxFuel );
 
-                    var totalFuelThisStop = m_totalFuelRequired / m_estimatedStops;
-                    m_fuelToAdd = (int)Math.Ceiling(totalFuelThisStop - e.TelemetryInfo.FuelLevel.Value);
+                    if( cbSpreadFuel.Checked )
+                    {
+                        m_logger.Debug( "\t- Spreading fuel" );
+                        var totalFuelThisStop = m_totalFuelRequired / m_estimatedStops;
+                        m_fuelToAdd = (int)Math.Ceiling(totalFuelThisStop - e.TelemetryInfo.FuelLevel.Value);
+                    }
+                    else if ( m_totalFuelRequired <= m_maxFuel )
+                    {
+                        m_logger.Debug( "\t- Adding remaining fuel for race" );
+                        m_fuelToAdd = (int)Math.Ceiling( m_totalFuelRequired );
+                    }
+                    else
+                    {
+                        m_logger.Debug( "\t- Adding max fuel" );
+                        m_fuelToAdd = (int) Math.Ceiling( m_maxFuel );
+                    }
 
                     m_logger.Debug( "\t- Fuel Delta: {0}", fuelDelta );
                     m_logger.Debug( "\t- Avg Laptime: {0}", m_averageLapTime );
@@ -176,7 +192,23 @@ namespace IrFuelCalc
 
                     if( m_sessionRemainingTime > 0 && m_averageLapTime > 0 && m_fuelPerLap > 0 && sessionState == SessionStates.Racing )
                     {
-                        var fuelThisStop = (int)Math.Ceiling((m_totalFuelRequired / m_estimatedStops) - e.TelemetryInfo.FuelLevel.Value);
+                        int fuelThisStop;
+
+                        if( cbSpreadFuel.Checked )
+                        {
+                            m_logger.Debug( "\t- Spreading fuel" );
+                            fuelThisStop = (int)Math.Ceiling((m_totalFuelRequired / m_estimatedStops) - e.TelemetryInfo.FuelLevel.Value);
+                        }
+                        else if ( m_totalFuelRequired <= m_maxFuel )
+                        {
+                            m_logger.Debug( "\t- Adding remaining fuel for race" );
+                            fuelThisStop = (int)Math.Ceiling( m_totalFuelRequired );
+                        }
+                        else
+                        {
+                            m_logger.Debug( "\t- Adding max fuel" );
+                            fuelThisStop = (int) Math.Ceiling( m_maxFuel );
+                        }
                         m_logger.Debug( "\t- Adding {0} litres of fuel", fuelThisStop );
 
                         if( m_autoFuel )
@@ -249,6 +281,7 @@ namespace IrFuelCalc
             m_logger.Debug( "Saving config" );
             var data = new IniData();
             data["settings"]["green_flag"] = cbOnlyGreen.Checked.ToString();
+            data["settings"]["spread_fuel"] = cbSpreadFuel.Checked.ToString();
             data["settings"]["lap_offset"] = nudLapOffset.Value.ToString( CultureInfo.InvariantCulture );
             data["settings"]["fuel_mult"] = nudFuelMult.Value.ToString( CultureInfo.InvariantCulture );
 
