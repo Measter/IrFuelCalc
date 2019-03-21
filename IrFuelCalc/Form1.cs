@@ -158,7 +158,7 @@ namespace IrFuelCalc
                     else if ( m_totalFuelRequired <= m_maxFuel )
                     {
                         m_logger.Debug( "\t- Adding remaining fuel for race" );
-                        m_fuelToAdd = (int)Math.Ceiling( m_totalFuelRequired );
+                        m_fuelToAdd = (int)Math.Ceiling( m_totalFuelRequired * (double)nudFuelMult.Value );
                     }
                     else
                     {
@@ -202,7 +202,7 @@ namespace IrFuelCalc
                         else if ( m_totalFuelRequired <= m_maxFuel )
                         {
                             m_logger.Debug( "\t- Adding remaining fuel for race" );
-                            fuelThisStop = (int)Math.Ceiling( m_totalFuelRequired );
+                            fuelThisStop = (int)Math.Ceiling( m_totalFuelRequired * (double)nudFuelMult.Value );
                         }
                         else
                         {
