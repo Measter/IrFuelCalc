@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -239,7 +239,7 @@ namespace IrFuelCalc
         private static double GetAvg(IEnumerable<double> data)
         {
             if( !data.Any() )
-                return 0;
+                return 1;
             
             var avg = data.Average();
             var sum = data.Sum( d => Math.Pow( d - avg, 2 ) );
@@ -251,7 +251,7 @@ namespace IrFuelCalc
             var filtered = data.Where( l => l >= min && l <= max );
 
             if( !filtered.Any() )
-                return 0;
+                return 1;
 
             return filtered.Average();
         }
