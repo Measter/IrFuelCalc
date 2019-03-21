@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -146,24 +146,35 @@ namespace IrFuelCalc
                     var avgFuel = m_fuelPerLap * (double)nudFuelMult.Value;
 
                     m_estimatedLaps = (int)Math.Ceiling( m_sessionRemainingTime / m_averageLapTime );
-                    m_totalFuelRequired = avgFuel * (m_estimatedLaps + (int)nudLapOffset.Value);
-                    m_estimatedStops = (int) Math.Ceiling( m_totalFuelRequired / m_maxFuel );
+                    m_totalFuelRequired = avgFuel * (m_estimatedLaps + (int)nudLapOffset.Value) - e.TelemetryInfo.FuelLevel.Value;
 
-                    if( cbSpreadFuel.Checked )
+                    if( m_totalFuelRequired > 0.0 )
                     {
-                        m_logger.Debug( "\t- Spreading fuel" );
-                        var totalFuelThisStop = m_totalFuelRequired / m_estimatedStops;
-                        m_fuelToAdd = (int)Math.Ceiling(totalFuelThisStop - e.TelemetryInfo.FuelLevel.Value);
-                    }
-                    else if ( m_totalFuelRequired <= m_maxFuel )
-                    {
-                        m_logger.Debug( "\t- Adding remaining fuel for race" );
-                        m_fuelToAdd = (int)Math.Ceiling( m_totalFuelRequired * (double)nudFuelMult.Value );
+                        m_logger.Debug( "\t- Need to refuel before end of race" );
+                        m_estimatedStops = (int) Math.Ceiling( m_totalFuelRequired / m_maxFuel );
+
+                        if( cbSpreadFuel.Checked )
+                        {
+                            m_logger.Debug( "\t- Spreading fuel" );
+                            var totalFuelThisStop = m_totalFuelRequired / m_estimatedStops;
+                            m_fuelToAdd = (int)Math.Ceiling(totalFuelThisStop - e.TelemetryInfo.FuelLevel.Value);
+                        }
+                        else if ( (m_totalFuelRequired + e.TelemetryInfo.FuelLevel.Value) <= m_maxFuel )
+                        {
+                            m_logger.Debug( "\t- Adding remaining fuel for race" );
+                            m_fuelToAdd = (int)Math.Ceiling( m_totalFuelRequired * (double)nudFuelMult.Value - e.TelemetryInfo.FuelLevel.Value);
+                        }
+                        else
+                        {
+                            m_logger.Debug( "\t- Fueling to max" );
+                            m_fuelToAdd = (int) Math.Ceiling( m_maxFuel - e.TelemetryInfo.FuelLevel.Value );
+                        }
                     }
                     else
                     {
-                        m_logger.Debug( "\t- Adding max fuel" );
-                        m_fuelToAdd = (int) Math.Ceiling( m_maxFuel );
+                        m_logger.Debug( "\t- No refueling needed" );
+                        m_estimatedStops = 0;
+                        m_fuelToAdd = 0;
                     }
 
                     m_logger.Debug( "\t- Fuel Delta: {0}", fuelDelta );
@@ -188,26 +199,27 @@ namespace IrFuelCalc
                 if( !oldInPits )
                 {
                     // Entering pit, send off command to set fuel.
-                    m_logger.Debug("Entering Pits");
+                    m_logger.Debug( "Entering Pits" );
+                    m_logger.Debug( "\t- Current fuel: {0}", e.TelemetryInfo.FuelLevel );
 
-                    if( m_sessionRemainingTime > 0 && m_averageLapTime > 0 && m_fuelPerLap > 0 && sessionState == SessionStates.Racing )
+                    if( m_sessionRemainingTime > 0 && m_averageLapTime > 0 && m_fuelPerLap > 0 && sessionState == SessionStates.Racing && m_totalFuelRequired > 0.0 )
                     {
                         int fuelThisStop;
 
                         if( cbSpreadFuel.Checked )
                         {
                             m_logger.Debug( "\t- Spreading fuel" );
-                            fuelThisStop = (int)Math.Ceiling((m_totalFuelRequired / m_estimatedStops) - e.TelemetryInfo.FuelLevel.Value);
+                            fuelThisStop = (int)Math.Ceiling(m_totalFuelRequired / m_estimatedStops);
                         }
-                        else if ( m_totalFuelRequired <= m_maxFuel )
+                        else if ( (m_totalFuelRequired + e.TelemetryInfo.FuelLevel.Value) <= m_maxFuel )
                         {
                             m_logger.Debug( "\t- Adding remaining fuel for race" );
                             fuelThisStop = (int)Math.Ceiling( m_totalFuelRequired * (double)nudFuelMult.Value );
                         }
                         else
                         {
-                            m_logger.Debug( "\t- Adding max fuel" );
-                            fuelThisStop = (int) Math.Ceiling( m_maxFuel );
+                            m_logger.Debug( "\t- Refueling to max" );
+                            fuelThisStop = (int)Math.Ceiling( m_maxFuel - e.TelemetryInfo.FuelLevel.Value);
                         }
                         m_logger.Debug( "\t- Adding {0} litres of fuel", fuelThisStop );
 
