@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -111,6 +111,8 @@ namespace IrFuelCalc
                 m_logger.Error( "Error parsing number of sessions: {0}", numSessionsString );
                 return;
             }
+
+            m_logger.Debug( "Number of Sessions: {0}", numSessions );
 
             for( int i = 0; i < numSessions; i++ )
             {
