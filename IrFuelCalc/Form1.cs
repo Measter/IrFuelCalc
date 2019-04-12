@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -24,6 +24,7 @@ namespace IrFuelCalc
         private double m_totalFuelRequired = 0.0;
         private int m_fuelToAdd = 0;
         private double m_maxFuel = 0.0;
+        private SessionFlag m_lastFlags;
 
         private readonly SdkWrapper m_wrapper;
 
@@ -104,6 +105,24 @@ namespace IrFuelCalc
             m_maxFuel = maxFuel * maxFuelPerc;
             m_logger.Debug( "Max Fuel is: {0}", m_maxFuel );
 
+            var numSessionsString = e.SessionInfo["SessionInfo"]["NumSessions"].Value;
+            if( Int32.TryParse( numSessionsString, out int numSessions ) )
+            {
+                m_logger.Error( "Error parsing number of sessions: {0}", numSessionsString );
+                return;
+            }
+
+            for( int i = 0; i < numSessions; i++ )
+            {
+                var sessionTime = e.SessionInfo["SessionInfo"]["Sessions", i]["SessionLaps"].Value;
+                var sessionType = e.SessionInfo["SessionInfo"]["Sessions", i]["SessionLaps"].Value;
+                var sessionLaps = e.SessionInfo["SessionInfo"]["Sessions", i]["SessionLaps"].Value;
+
+                m_logger.Debug( "Session Info: " );
+                m_logger.Debug( "\t- Session Time: {0}", sessionTime );
+                m_logger.Debug( "\t- Session Type: {0}", sessionType );
+                m_logger.Debug( "\t- Session Laps: {0}", sessionLaps );
+            }
 
             UpdateLabels();
         }
@@ -117,6 +136,13 @@ namespace IrFuelCalc
             var inPits = m_wrapper.GetTelemetryValue<bool>( "OnPitRoad" ).Value;
             var sessionState = e.TelemetryInfo.SessionState.Value;
             var lastLapId = e.TelemetryInfo.LapCompleted.Value;
+
+            var flag = e.TelemetryInfo.SessionFlags.Value;
+            if( m_lastFlags != flag )
+            {
+                m_lastFlags = flag;
+                m_logger.Debug( "New Flags: {0}", m_lastFlags );
+            }
 
             m_sessionRemainingTime = e.TelemetryInfo.SessionTimeRemain.Value;
 
