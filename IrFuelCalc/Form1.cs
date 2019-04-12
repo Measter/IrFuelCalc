@@ -147,6 +147,7 @@ namespace IrFuelCalc
             }
 
             m_sessionRemainingTime = e.TelemetryInfo.SessionTimeRemain.Value;
+            UpdateFuelCalc( e );
 
             if( lastLapId > 0 && m_lastLapCompleted != lastLapId )
             {
@@ -159,7 +160,6 @@ namespace IrFuelCalc
                 OnPitEntry( e, inPits, sessionState );
             }
 
-            UpdateFuelCalc( e );
             UpdateLabels();
         }
 
