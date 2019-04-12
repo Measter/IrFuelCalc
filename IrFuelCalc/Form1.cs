@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -102,7 +102,7 @@ namespace IrFuelCalc
             m_logger.Debug( "Max Fuel tank found to be: {0}", maxFuel );
             m_logger.Debug( "Max Fuel percent found to be: {0}", maxFuelPerc );
             m_maxFuel = maxFuel * maxFuelPerc;
-            m_logger.Debug( "Max Fule is: {0}", m_maxFuel );
+            m_logger.Debug( "Max Fuel is: {0}", m_maxFuel );
 
 
             UpdateLabels();
