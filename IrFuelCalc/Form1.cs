@@ -108,6 +108,7 @@ namespace IrFuelCalc
             UpdateLabels();
         }
 
+        
         private void OnTelemetryUpdated( object sender, SdkWrapper.TelemetryUpdatedEventArgs e )
         {
             if( m_maxFuel < 0.1 )
@@ -117,124 +118,116 @@ namespace IrFuelCalc
             var sessionState = e.TelemetryInfo.SessionState.Value;
             var lastLapId = e.TelemetryInfo.LapCompleted.Value;
 
+            m_sessionRemainingTime = e.TelemetryInfo.SessionTimeRemain.Value;
+
             if( lastLapId > 0 && m_lastLapCompleted != lastLapId )
             {
                 m_lastLapCompleted = lastLapId;
-                m_sessionRemainingTime = e.TelemetryInfo.SessionTimeRemain.Value;
-
-                var fuelLevel = e.TelemetryInfo.FuelLevel.Value;
-                var laptime = m_wrapper.GetTelemetryValue<float>( "LapLastLapTime" ).Value;
-                var flag = e.TelemetryInfo.SessionFlags.Value;
-
-                m_logger.Debug( "Lap Completed {0}", m_lastLapCompleted );
-                m_logger.Debug( "\t- Time: {0}", laptime );
-                m_logger.Debug( "\t- Fuel Level: {0}", fuelLevel );
-
-                if( m_lastFuelLevel >= fuelLevel && !inPits )
-                {
-                    var fuelDelta = m_lastFuelLevel - fuelLevel;
-                    if( !cbOnlyGreen.Checked || (cbOnlyGreen.Checked && sessionState == SessionStates.Racing && flag.Contains( SessionFlags.Green )) )
-                    {
-                        m_lapTimes.Add( laptime );
-                        m_fuelUsages.Add( fuelDelta );
-                    }
-
-                    m_fuelLastLap = fuelDelta;
-                    m_averageLapTime = GetAvg(m_lapTimes.Where( l => l > 0.0 ));
-                    m_fuelPerLap = GetAvg(m_fuelUsages);
-
-                    var avgFuel = m_fuelPerLap * (double)nudFuelMult.Value;
-
-                    m_estimatedLaps = (int)Math.Ceiling( m_sessionRemainingTime / m_averageLapTime );
-                    m_totalFuelRequired = avgFuel * (m_estimatedLaps + (int)nudLapOffset.Value) - e.TelemetryInfo.FuelLevel.Value;
-
-                    if( m_totalFuelRequired > 0.0 )
-                    {
-                        m_logger.Debug( "\t- Need to refuel before end of race" );
-                        m_estimatedStops = (int) Math.Ceiling( m_totalFuelRequired / m_maxFuel );
-
-                        if( cbSpreadFuel.Checked )
-                        {
-                            m_logger.Debug( "\t- Spreading fuel" );
-                            var totalFuelThisStop = m_totalFuelRequired / m_estimatedStops;
-                            m_fuelToAdd = (int)Math.Ceiling(totalFuelThisStop - e.TelemetryInfo.FuelLevel.Value);
-                        }
-                        else if ( (m_totalFuelRequired + e.TelemetryInfo.FuelLevel.Value) <= m_maxFuel )
-                        {
-                            m_logger.Debug( "\t- Adding remaining fuel for race" );
-                            m_fuelToAdd = (int)Math.Ceiling( m_totalFuelRequired * (double)nudFuelMult.Value - e.TelemetryInfo.FuelLevel.Value);
-                        }
-                        else
-                        {
-                            m_logger.Debug( "\t- Fueling to max" );
-                            m_fuelToAdd = (int) Math.Ceiling( m_maxFuel - e.TelemetryInfo.FuelLevel.Value );
-                        }
-                    }
-                    else
-                    {
-                        m_logger.Debug( "\t- No refueling needed" );
-                        m_estimatedStops = 0;
-                        m_fuelToAdd = 0;
-                    }
-
-                    m_logger.Debug( "\t- Fuel Delta: {0}", fuelDelta );
-                    m_logger.Debug( "\t- Avg Laptime: {0}", m_averageLapTime );
-                    m_logger.Debug( "\t- Avg Fuel Delta: {0}", m_fuelPerLap );
-
-                    m_logger.Debug( "\t- Laps Remaining: {0}", m_estimatedLaps );
-                    m_logger.Debug( "\t- Total Fuel Required: {0}", m_totalFuelRequired );
-                    m_logger.Debug( "\t- Stops Remaining: {0}", m_estimatedStops );
-                }
-
-                m_lastFuelLevel = fuelLevel;
-
-                UpdateLabels();
+                OnNewLap( e, inPits, sessionState );
             }
 
             if( m_inPits != inPits )
             {
-                var oldInPits = m_inPits;
-                m_inPits = inPits;
+                OnPitEntry( e, inPits, sessionState );
+            }
 
-                if( !oldInPits )
+            UpdateFuelCalc( e );
+            UpdateLabels();
+        }
+
+        private void UpdateFuelCalc( SdkWrapper.TelemetryUpdatedEventArgs e )
+        {
+            var avgFuel = m_fuelPerLap * (double)nudFuelMult.Value;
+
+            m_estimatedLaps = (int)Math.Ceiling( m_sessionRemainingTime / m_averageLapTime );
+            m_totalFuelRequired = avgFuel * ( m_estimatedLaps + (int)nudLapOffset.Value ) - e.TelemetryInfo.FuelLevel.Value;
+
+            if( m_totalFuelRequired > 0.0 )
+            {
+                m_estimatedStops = (int)Math.Ceiling( m_totalFuelRequired / m_maxFuel );
+
+                if( cbSpreadFuel.Checked )
                 {
-                    // Entering pit, send off command to set fuel.
-                    m_logger.Debug( "Entering Pits" );
-                    m_logger.Debug( "\t- Current fuel: {0}", e.TelemetryInfo.FuelLevel );
+                    var totalFuelThisStop = m_totalFuelRequired / m_estimatedStops;
+                    m_fuelToAdd = (int)Math.Ceiling( totalFuelThisStop - e.TelemetryInfo.FuelLevel.Value );
+                }
+                else if( ( m_totalFuelRequired + e.TelemetryInfo.FuelLevel.Value ) <= m_maxFuel )
+                {
+                    m_fuelToAdd = (int)Math.Ceiling( m_totalFuelRequired * (double)nudFuelMult.Value - e.TelemetryInfo.FuelLevel.Value );
+                }
+                else
+                {
+                    m_fuelToAdd = (int)Math.Ceiling( m_maxFuel - e.TelemetryInfo.FuelLevel.Value );
+                }
+            }
+            else
+            {
+                m_estimatedStops = 0;
+                m_fuelToAdd = 0;
+            }
+        }
 
-                    if( m_sessionRemainingTime > 0 && m_averageLapTime > 0 && m_fuelPerLap > 0 && sessionState == SessionStates.Racing && m_totalFuelRequired > 0.0 )
+        private void OnPitEntry( SdkWrapper.TelemetryUpdatedEventArgs e, bool inPits, SessionStates sessionState )
+        {
+            var oldInPits = m_inPits;
+            m_inPits = inPits;
+
+            if( !oldInPits )
+            {
+                // Entering pit, send off command to set fuel.
+                m_logger.Debug( "Entering Pits" );
+                m_logger.Debug( "\t- Current fuel: {0}", e.TelemetryInfo.FuelLevel );
+
+                if( m_sessionRemainingTime > 0 && sessionState == SessionStates.Racing && m_fuelToAdd > 0.0 )
+                {
+                    m_logger.Debug( "\t- Adding {0} litres of fuel", m_fuelToAdd );
+
+                    if( m_autoFuel )
                     {
-                        int fuelThisStop;
-
-                        if( cbSpreadFuel.Checked )
-                        {
-                            m_logger.Debug( "\t- Spreading fuel" );
-                            fuelThisStop = (int)Math.Ceiling(m_totalFuelRequired / m_estimatedStops);
-                        }
-                        else if ( (m_totalFuelRequired + e.TelemetryInfo.FuelLevel.Value) <= m_maxFuel )
-                        {
-                            m_logger.Debug( "\t- Adding remaining fuel for race" );
-                            fuelThisStop = (int)Math.Ceiling( m_totalFuelRequired * (double)nudFuelMult.Value );
-                        }
-                        else
-                        {
-                            m_logger.Debug( "\t- Refueling to max" );
-                            fuelThisStop = (int)Math.Ceiling( m_maxFuel - e.TelemetryInfo.FuelLevel.Value);
-                        }
-                        m_logger.Debug( "\t- Adding {0} litres of fuel", fuelThisStop );
-
-                        if( m_autoFuel )
-                        {
-                            m_logger.Debug( "\t- AutoFuel enabled." );
-                            m_wrapper.PitCommands.AddFuel( fuelThisStop );
-                        }
-                        else
-                        {
-                            m_logger.Debug( "\t- AutoFuel disabled." );
-                        }
+                        m_logger.Debug( "\t- AutoFuel enabled." );
+                        m_wrapper.PitCommands.AddFuel( m_fuelToAdd );
+                    }
+                    else
+                    {
+                        m_logger.Debug( "\t- AutoFuel disabled." );
                     }
                 }
             }
+        }
+
+        private void OnNewLap( SdkWrapper.TelemetryUpdatedEventArgs e, bool inPits, SessionStates sessionState )
+        {
+            var fuelLevel = e.TelemetryInfo.FuelLevel.Value;
+            var laptime = m_wrapper.GetTelemetryValue<float>( "LapLastLapTime" ).Value;
+            var flag = e.TelemetryInfo.SessionFlags.Value;
+
+            m_logger.Debug( "Lap Completed {0}", m_lastLapCompleted );
+            m_logger.Debug( "\t- Time: {0}", laptime );
+            m_logger.Debug( "\t- Fuel Level: {0}", fuelLevel );
+
+            if( m_lastFuelLevel >= fuelLevel && !inPits )
+            {
+                var fuelDelta = m_lastFuelLevel - fuelLevel;
+                if( !cbOnlyGreen.Checked || ( cbOnlyGreen.Checked && sessionState == SessionStates.Racing && flag.Contains( SessionFlags.Green ) ) )
+                {
+                    m_lapTimes.Add( laptime );
+                    m_fuelUsages.Add( fuelDelta );
+                }
+
+                m_fuelLastLap = fuelDelta;
+                m_averageLapTime = GetAvg( m_lapTimes.Where( l => l > 0.0 ) );
+                m_fuelPerLap = GetAvg( m_fuelUsages );
+
+                m_logger.Debug( "\t- Fuel Delta: {0}", fuelDelta );
+                m_logger.Debug( "\t- Avg Laptime: {0}", m_averageLapTime );
+                m_logger.Debug( "\t- Avg Fuel Delta: {0}", m_fuelPerLap );
+
+                m_logger.Debug( "\t- Laps Remaining: {0}", m_estimatedLaps );
+                m_logger.Debug( "\t- Total Fuel Required: {0}", m_totalFuelRequired );
+                m_logger.Debug( "\t- Stops Remaining: {0}", m_estimatedStops );
+            }
+
+            m_lastFuelLevel = fuelLevel;
         }
 
         private void UpdateLabels()
