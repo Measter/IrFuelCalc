@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -24,7 +24,7 @@ namespace IrFuelCalc
         private double m_totalFuelRequired = 0.0;
         private int m_fuelToAdd = 0;
         private double m_maxFuel = 0.0;
-        private SessionFlag m_lastFlags;
+        private bool m_isGreen = false;
 
         private readonly SdkWrapper m_wrapper;
 
@@ -140,10 +140,14 @@ namespace IrFuelCalc
             var lastLapId = e.TelemetryInfo.LapCompleted.Value;
 
             var flag = e.TelemetryInfo.SessionFlags.Value;
-            if( m_lastFlags != flag )
+            if( flag.Contains( SessionFlags.Green ) && !m_isGreen )
             {
-                m_lastFlags = flag;
-                m_logger.Debug( "New Flags: {0}", m_lastFlags );
+                m_isGreen = true;
+                m_logger.Debug( "Green Flag!" );
+            } else if( flag.Contains( SessionFlags.Caution ) || flag.Contains( SessionFlags.CautionWaving ) && m_isGreen )
+            {
+                m_isGreen = false;
+                m_logger.Debug( "Caution Flag!" );
             }
 
             m_sessionRemainingTime = e.TelemetryInfo.SessionTimeRemain.Value;
@@ -236,7 +240,7 @@ namespace IrFuelCalc
             if( m_lastFuelLevel >= fuelLevel && !inPits )
             {
                 var fuelDelta = m_lastFuelLevel - fuelLevel;
-                if( !cbOnlyGreen.Checked || ( cbOnlyGreen.Checked && sessionState == SessionStates.Racing && flag.Contains( SessionFlags.Green ) ) )
+                if( !cbOnlyGreen.Checked || ( cbOnlyGreen.Checked && sessionState == SessionStates.Racing && m_isGreen ) )
                 {
                     m_lapTimes.Add( laptime );
                     m_fuelUsages.Add( fuelDelta );
