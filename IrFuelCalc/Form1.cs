@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -177,9 +177,9 @@ namespace IrFuelCalc
 
             m_estimatedLaps = (int) Math.Ceiling( m_sessionRemainingTime / m_averageLapTime );
 
-            var lapsLeft = Math.Min( m_estimatedLaps, m_telemLaps );
+            m_lapsRemaining = Math.Min( m_estimatedLaps, m_telemLaps );
 
-            m_totalFuelRequired = avgFuel * ( lapsLeft + (int) nudLapOffset.Value ) - e.TelemetryInfo.FuelLevel.Value;
+            m_totalFuelRequired = avgFuel * ( m_lapsRemaining + (int) nudLapOffset.Value ) - e.TelemetryInfo.FuelLevel.Value;
 
             if( m_totalFuelRequired > 0.0 )
             {
@@ -273,7 +273,7 @@ namespace IrFuelCalc
         private void UpdateLabels()
         {
             lblFuelLastLap.Text = m_fuelLastLap.ToString( "0.00", CultureInfo.InvariantCulture );
-            lblEstimatedLaps.Text = m_estimatedLaps.ToString();
+            lblEstimatedLaps.Text = m_lapsRemaining.ToString();
             lblEstimatedStops.Text = m_estimatedStops.ToString();
             lblFuelMax.Text = m_maxFuel.ToString( "0.00", CultureInfo.InvariantCulture );
             lblFuelPerLap.Text = m_fuelPerLap.ToString( "0.00", CultureInfo.InvariantCulture );
