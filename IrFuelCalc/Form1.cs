@@ -155,7 +155,6 @@ namespace IrFuelCalc
             }
 
             m_sessionRemainingTime = e.TelemetryInfo.SessionTimeRemain.Value;
-            m_telemLaps = m_wrapper.GetTelemetryValue<int>( "SessionLapsRemain" ).Value;
             UpdateFuelCalc( e );
 
             if( lastLapId > 0 && m_lastLapCompleted != lastLapId )
@@ -240,6 +239,7 @@ namespace IrFuelCalc
             var fuelLevel = e.TelemetryInfo.FuelLevel.Value;
             var laptime = m_wrapper.GetTelemetryValue<float>( "LapLastLapTime" ).Value;
             var flag = e.TelemetryInfo.SessionFlags.Value;
+            m_telemLaps = m_wrapper.GetTelemetryValue<int>( "SessionLapsRemain" ).Value;
 
             m_logger.Debug( "Lap Completed {0}", m_lastLapCompleted );
             m_logger.Debug( "\t- Time: {0}", laptime );
@@ -262,7 +262,8 @@ namespace IrFuelCalc
                 m_logger.Debug( "\t- Avg Laptime: {0}", m_averageLapTime );
                 m_logger.Debug( "\t- Avg Fuel Delta: {0}", m_fuelPerLap );
 
-                m_logger.Debug( "\t- Laps Remaining: {0}", m_estimatedLaps );
+                m_logger.Debug( "\t- Estimated Laps Remaining: {0}", m_estimatedLaps );
+                m_logger.Debug( "\t- Telemetry Laps Remaining: {0}", m_telemLaps );
                 m_logger.Debug( "\t- Total Fuel Required: {0}", m_totalFuelRequired );
                 m_logger.Debug( "\t- Stops Remaining: {0}", m_estimatedStops );
             }
