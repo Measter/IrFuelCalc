@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -238,7 +238,6 @@ namespace IrFuelCalc
         {
             var fuelLevel = e.TelemetryInfo.FuelLevel.Value;
             var laptime = m_wrapper.GetTelemetryValue<float>( "LapLastLapTime" ).Value;
-            var flag = e.TelemetryInfo.SessionFlags.Value;
             m_telemLaps = m_wrapper.GetTelemetryValue<int>( "SessionLapsRemain" ).Value;
 
             m_logger.Debug( "Lap Completed {0}", m_lastLapCompleted );
