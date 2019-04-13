@@ -19,6 +19,8 @@ namespace IrFuelCalc
 
         private int m_estimatedLaps = 0;
         private int m_estimatedStops = 0;
+        private int m_telemLaps = 0;
+        private int m_lapsRemaining = 0;
         private double m_fuelPerLap = 0.0;
         private double m_fuelLastLap = 0.0;
         private double m_totalFuelRequired = 0.0;
@@ -31,7 +33,7 @@ namespace IrFuelCalc
         private bool m_inPits = true;
         private double m_lastFuelLevel;
         private double m_averageLapTime = 0;
-        private int m_lastLapCompleted= 0;
+        private int m_lastLapCompleted = 0;
         private double m_sessionRemainingTime = 0;
 
         private readonly List<double> m_lapTimes = new List<double>();
@@ -83,9 +85,6 @@ namespace IrFuelCalc
 
         private void OnSessionInfoUpdated( object sender, SdkWrapper.SessionInfoUpdatedEventArgs e )
         {
-            if( Math.Abs( m_maxFuel ) > 0.01 )
-                return;
-
             var rawMaxFuel = e.SessionInfo["DriverInfo"]["DriverCarFuelMaxLtr"].Value;
             if( !double.TryParse( rawMaxFuel, out double maxFuel ) )
             {
@@ -94,16 +93,34 @@ namespace IrFuelCalc
             }
 
             var rawMaxFuelPerc = e.SessionInfo["DriverInfo"]["DriverCarMaxFuelPct"].Value;
-            if( !double.TryParse(rawMaxFuelPerc, out double maxFuelPerc) )
+            if( !double.TryParse( rawMaxFuelPerc, out double maxFuelPerc ) )
             {
                 m_logger.Error( "Error parsing max fuel percent: {0}", rawMaxFuelPerc );
                 return;
             }
 
-            m_logger.Debug( "Max Fuel tank found to be: {0}", maxFuel );
-            m_logger.Debug( "Max Fuel percent found to be: {0}", maxFuelPerc );
-            m_maxFuel = maxFuel * maxFuelPerc;
-            m_logger.Debug( "Max Fuel is: {0}", m_maxFuel );
+            if( Math.Abs( m_maxFuel - maxFuel * maxFuelPerc ) > 0.1 )
+            {
+                // Max fuel has changed, should clear the averages to be safe.
+                m_maxFuel = maxFuel * maxFuelPerc;
+                m_logger.Debug( "Max Fuel tank found to be: {0}", maxFuel );
+                m_logger.Debug( "Max Fuel percent found to be: {0}", maxFuelPerc );
+                m_logger.Debug( "Max Fuel is: {0}", m_maxFuel );
+
+                m_lastFuelLevel = 0.0;
+                m_averageLapTime = 0.0;
+                m_lastLapCompleted = 0;
+                m_sessionRemainingTime = 0.0;
+                m_fuelToAdd = 0;
+                m_totalFuelRequired = 0.0;
+                m_fuelLastLap = 0.0;
+                m_fuelPerLap = 0.0;
+                m_estimatedStops = 0;
+                m_estimatedLaps = 0;
+                m_telemLaps = 0;
+                m_lapTimes.Clear();
+                m_fuelUsages.Clear();
+            }
 
             var numSessionsString = e.SessionInfo["SessionInfo"]["NumSessions"].Value;
             if( Int32.TryParse( numSessionsString, out int numSessions ) )
@@ -112,24 +129,10 @@ namespace IrFuelCalc
                 return;
             }
 
-            m_logger.Debug( "Number of Sessions: {0}", numSessions );
-
-            for( int i = 0; i < numSessions; i++ )
-            {
-                var sessionTime = e.SessionInfo["SessionInfo"]["Sessions", i]["SessionLaps"].Value;
-                var sessionType = e.SessionInfo["SessionInfo"]["Sessions", i]["SessionLaps"].Value;
-                var sessionLaps = e.SessionInfo["SessionInfo"]["Sessions", i]["SessionLaps"].Value;
-
-                m_logger.Debug( "Session Info: " );
-                m_logger.Debug( "\t- Session Time: {0}", sessionTime );
-                m_logger.Debug( "\t- Session Type: {0}", sessionType );
-                m_logger.Debug( "\t- Session Laps: {0}", sessionLaps );
-            }
-
             UpdateLabels();
         }
 
-        
+
         private void OnTelemetryUpdated( object sender, SdkWrapper.TelemetryUpdatedEventArgs e )
         {
             if( m_maxFuel < 0.1 )
@@ -144,13 +147,15 @@ namespace IrFuelCalc
             {
                 m_isGreen = true;
                 m_logger.Debug( "Green Flag!" );
-            } else if( flag.Contains( SessionFlags.Caution ) || flag.Contains( SessionFlags.CautionWaving ) && m_isGreen )
+            }
+            else if( flag.Contains( SessionFlags.Caution ) || flag.Contains( SessionFlags.CautionWaving ) && m_isGreen )
             {
                 m_isGreen = false;
                 m_logger.Debug( "Caution Flag!" );
             }
 
             m_sessionRemainingTime = e.TelemetryInfo.SessionTimeRemain.Value;
+            m_telemLaps = m_wrapper.GetTelemetryValue<int>( "SessionLapsRemain" ).Value;
             UpdateFuelCalc( e );
 
             if( lastLapId > 0 && m_lastLapCompleted != lastLapId )
@@ -169,27 +174,30 @@ namespace IrFuelCalc
 
         private void UpdateFuelCalc( SdkWrapper.TelemetryUpdatedEventArgs e )
         {
-            var avgFuel = m_fuelPerLap * (double)nudFuelMult.Value;
+            var avgFuel = m_fuelPerLap * (double) nudFuelMult.Value;
 
-            m_estimatedLaps = (int)Math.Ceiling( m_sessionRemainingTime / m_averageLapTime );
-            m_totalFuelRequired = avgFuel * ( m_estimatedLaps + (int)nudLapOffset.Value ) - e.TelemetryInfo.FuelLevel.Value;
+            m_estimatedLaps = (int) Math.Ceiling( m_sessionRemainingTime / m_averageLapTime );
+
+            var lapsLeft = Math.Min( m_estimatedLaps, m_telemLaps );
+
+            m_totalFuelRequired = avgFuel * ( lapsLeft + (int) nudLapOffset.Value ) - e.TelemetryInfo.FuelLevel.Value;
 
             if( m_totalFuelRequired > 0.0 )
             {
-                m_estimatedStops = (int)Math.Ceiling( m_totalFuelRequired / m_maxFuel );
+                m_estimatedStops = (int) Math.Ceiling( m_totalFuelRequired / m_maxFuel );
 
                 if( cbSpreadFuel.Checked )
                 {
                     var totalFuelThisStop = m_totalFuelRequired / m_estimatedStops;
-                    m_fuelToAdd = (int)Math.Ceiling( totalFuelThisStop - e.TelemetryInfo.FuelLevel.Value );
+                    m_fuelToAdd = (int) Math.Ceiling( totalFuelThisStop - e.TelemetryInfo.FuelLevel.Value );
                 }
                 else if( ( m_totalFuelRequired + e.TelemetryInfo.FuelLevel.Value ) <= m_maxFuel )
                 {
-                    m_fuelToAdd = (int)Math.Ceiling( m_totalFuelRequired * (double)nudFuelMult.Value - e.TelemetryInfo.FuelLevel.Value );
+                    m_fuelToAdd = (int) Math.Ceiling( m_totalFuelRequired * (double) nudFuelMult.Value - e.TelemetryInfo.FuelLevel.Value );
                 }
                 else
                 {
-                    m_fuelToAdd = (int)Math.Ceiling( m_maxFuel - e.TelemetryInfo.FuelLevel.Value );
+                    m_fuelToAdd = (int) Math.Ceiling( m_maxFuel - e.TelemetryInfo.FuelLevel.Value );
                 }
             }
             else
@@ -273,11 +281,11 @@ namespace IrFuelCalc
             lblFuelToAdd.Text = m_fuelToAdd.ToString();
         }
 
-        private static double GetAvg(IEnumerable<double> data)
+        private static double GetAvg( IEnumerable<double> data )
         {
             if( !data.Any() )
                 return 1;
-            
+
             var avg = data.Average();
             var sum = data.Sum( d => Math.Pow( d - avg, 2 ) );
             var stdDev = Math.Sqrt( sum / ( data.Count() - 1 ) );
