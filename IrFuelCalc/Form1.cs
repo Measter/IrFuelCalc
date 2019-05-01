@@ -122,13 +122,6 @@ namespace IrFuelCalc
                 m_fuelUsages.Clear();
             }
 
-            var numSessionsString = e.SessionInfo["SessionInfo"]["NumSessions"].Value;
-            if( Int32.TryParse( numSessionsString, out int numSessions ) )
-            {
-                m_logger.Error( "Error parsing number of sessions: {0}", numSessionsString );
-                return;
-            }
-
             UpdateLabels();
         }
 
