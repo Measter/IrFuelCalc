@@ -168,7 +168,7 @@ namespace IrFuelCalc
         {
             var avgFuel = m_fuelPerLap * (double) nudFuelMult.Value;
 
-            m_estimatedLaps = (int) Math.Ceiling( m_sessionRemainingTime / m_averageLapTime );
+            m_estimatedLaps = Math.Max((int) Math.Ceiling( m_sessionRemainingTime / m_averageLapTime ), 0);
 
             m_lapsRemaining = Math.Min( m_estimatedLaps, m_telemLaps );
 
