@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -172,7 +172,7 @@ namespace IrFuelCalc
 
             m_lapsRemaining = Math.Min( m_estimatedLaps, m_telemLaps );
 
-            m_totalFuelRequired = avgFuel * ( m_lapsRemaining - e.TelemetryInfo.LapDistPct.Value + (int) nudLapOffset.Value ) - e.TelemetryInfo.FuelLevel.Value;
+            m_totalFuelRequired = avgFuel * ( m_lapsRemaining + (int) nudLapOffset.Value ) - e.TelemetryInfo.FuelLevel.Value;
 
             if( m_totalFuelRequired > 0.0 )
             {
