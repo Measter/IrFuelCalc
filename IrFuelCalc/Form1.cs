@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -244,6 +244,9 @@ namespace IrFuelCalc
                 {
                     m_lapTimes.Add( laptime );
                     m_fuelUsages.Add( fuelDelta );
+
+                    m_fuelUsages.Sort();
+                    m_lapTimes.Sort();
                 }
 
                 m_fuelLastLap = fuelDelta;
@@ -279,19 +282,12 @@ namespace IrFuelCalc
             if( !data.Any() )
                 return 1;
 
-            var avg = data.Average();
-            var sum = data.Sum( d => Math.Pow( d - avg, 2 ) );
-            var stdDev = Math.Sqrt( sum / ( data.Count() - 1 ) );
+            var top = (data.Count() * 19) / 20; // 95%
+            var bottom = (data.Count() * 2) / 5; // 40%
 
-            var min = avg - stdDev;
-            var max = avg + stdDev;
+            var avg = data.Take( Math.Max(top, 1) ).Skip( bottom ).Average();
 
-            var filtered = data.Where( l => l >= min && l <= max );
-
-            if( !filtered.Any() )
-                return 1;
-
-            return filtered.Average();
+            return avg;
         }
 
         private void btnEnableAutoFuel_Click( object sender, EventArgs e )
