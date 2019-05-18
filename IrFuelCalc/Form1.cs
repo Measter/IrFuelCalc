@@ -181,11 +181,11 @@ namespace IrFuelCalc
                 if( cbSpreadFuel.Checked )
                 {
                     var totalFuelThisStop = m_totalFuelRequired / m_estimatedStops;
-                    m_fuelToAdd = (int) Math.Ceiling( totalFuelThisStop - e.TelemetryInfo.FuelLevel.Value );
+                    m_fuelToAdd = (int) Math.Ceiling( totalFuelThisStop );
                 }
                 else if( ( m_totalFuelRequired + e.TelemetryInfo.FuelLevel.Value ) <= m_maxFuel )
                 {
-                    m_fuelToAdd = (int) Math.Ceiling( m_totalFuelRequired * (double) nudFuelMult.Value - e.TelemetryInfo.FuelLevel.Value );
+                    m_fuelToAdd = (int) Math.Ceiling( m_totalFuelRequired );
                 }
                 else
                 {
