@@ -16,6 +16,12 @@ namespace IrFuelCalc
         private static readonly NLog.Logger m_logger = NLog.LogManager.GetCurrentClassLogger();
 
         private const string CONFIG_FILE_S = "config.ini";
+        
+        private const int Unit_Automatic = 0;
+        private const int Unit_UsCustomary = 1;
+        private const int Unit_Metric = 2;
+
+        private const double LitresPerGallon = 3.785412534;
 
         private int m_estimatedLaps = 0;
         private int m_estimatedStops = 0;
@@ -27,6 +33,10 @@ namespace IrFuelCalc
         private int m_fuelToAdd = 0;
         private double m_maxFuel = 0.0;
         private bool m_isGreen = false;
+        private bool m_is_metric_units = true;
+
+        private string m_lastTrackId = "";
+        private string m_lastCarId = "";
 
         private readonly SdkWrapper m_wrapper;
 
@@ -58,10 +68,14 @@ namespace IrFuelCalc
             m_tooltip.SetToolTip( nudLapOffset, "Adds this number of laps to the race length during fuel calculation." );
             m_tooltip.SetToolTip( cbOnlyGreen, "When enabled, only laps done in a race under green flag conditions are logged. Useful if you expect a lot of cautions." );
             m_tooltip.SetToolTip( btnEnableAutoFuel, "If enabled, will automatically set the pitstop fuel amount when you cross the yellow cones.\nIf disabled, will only monitor." );
-
-            UpdateLabels();
+            m_tooltip.SetToolTip( cbUnits, "Selects which units to use when displaying and calculating fuel. Automatic will try to use what the game does." );
 
             OpenConfig();
+
+            if( cbUnits.SelectedIndex == -1 )
+                cbUnits.SelectedIndex = 0;
+
+            UpdateLabels();
         }
 
         private void OpenConfig()
@@ -76,8 +90,25 @@ namespace IrFuelCalc
                 var fuelMult = data["settings"]["fuel_mult"];
                 var spreadFuel = data["settings"].ContainsKey( "spread_fuel" ) ? data["settings"]["spread_fuel"] : "False";
 
+                if( data["settings"].ContainsKey( "units" ) )
+                {
+                    switch( data["settings"]["units"].ToLower() )
+                    {
+                        case "metric":
+                            cbUnits.SelectedIndex = Unit_Metric;
+                            break;
+                        case "us customary":
+                            cbUnits.SelectedIndex = Unit_UsCustomary;
+                            break;
+                        case "automatic":
+                        default:
+                            cbUnits.SelectedIndex = Unit_Automatic;
+                            break;
+                    }
+
+                }
+
                 cbOnlyGreen.Checked = bool.Parse( greenFlag.Trim() );
-                cbSpreadFuel.Checked = bool.Parse( spreadFuel.Trim() );
                 nudLapOffset.Value = decimal.Parse( lapOffset.Trim(), CultureInfo.InvariantCulture );
                 nudFuelMult.Value = decimal.Parse( fuelMult.Trim(), CultureInfo.InvariantCulture );
             }
@@ -99,13 +130,29 @@ namespace IrFuelCalc
                 return;
             }
 
-            if( Math.Abs( m_maxFuel - maxFuel * maxFuelPerc ) > 0.1 )
+            if( Math.Abs(m_maxFuel - maxFuel * maxFuelPerc) > 0.1 )
             {
-                // Max fuel has changed, should clear the averages to be safe.
                 m_maxFuel = maxFuel * maxFuelPerc;
                 m_logger.Debug( "Max Fuel tank found to be: {0}", maxFuel );
-                m_logger.Debug( "Max Fuel percent found to be: {0}", maxFuelPerc );
+                m_logger.Debug( "Max Fuel percent found to be: {0}%", maxFuelPerc * 100 );
                 m_logger.Debug( "Max Fuel is: {0}", m_maxFuel );
+            }
+
+            var trackId = e.SessionInfo["WeekendInfo"]["TrackID"].Value;
+            var trackDisplayName = e.SessionInfo["WeekendInfo"]["TrackDisplayName"].Value;
+
+            var carIdx = int.Parse(e.SessionInfo["DriverInfo"]["DriverCarIdx"].Value);
+            var carScreenName = e.SessionInfo["DriverInfo"]["Drivers"]["CarIdx", carIdx]["CarScreenName"].Value;
+            var carId = e.SessionInfo["DriverInfo"]["Drivers"]["CarIdx", carIdx]["CarID"].Value;
+
+            if( m_lastTrackId != trackId || m_lastCarId != carId )
+            {
+                // Track and/or car has changed, so reset everything.
+                m_logger.Debug("Track: {0} - {1}", trackId, trackDisplayName);
+                m_logger.Debug("Car: {0} - {1}", carId, carScreenName);
+
+                m_lastCarId = carId;
+                m_lastTrackId = trackId;
 
                 m_lastFuelLevel = 0.0;
                 m_averageLapTime = 0.0;
@@ -125,13 +172,13 @@ namespace IrFuelCalc
             UpdateLabels();
         }
 
-
         private void OnTelemetryUpdated( object sender, SdkWrapper.TelemetryUpdatedEventArgs e )
         {
             if( m_maxFuel < 0.1 )
                 m_wrapper.RequestSessionInfoUpdate();
 
             var inPits = m_wrapper.GetTelemetryValue<bool>( "OnPitRoad" ).Value;
+            m_is_metric_units = m_wrapper.GetTelemetryValue<int>( "DisplayUnits" ).Value == 1;
             var sessionState = e.TelemetryInfo.SessionState.Value;
             var lastLapId = e.TelemetryInfo.LapCompleted.Value;
 
@@ -178,18 +225,18 @@ namespace IrFuelCalc
             {
                 m_estimatedStops = (int) Math.Ceiling( m_totalFuelRequired / m_maxFuel );
 
-                if( cbSpreadFuel.Checked )
-                {
-                    var totalFuelThisStop = m_totalFuelRequired / m_estimatedStops;
-                    m_fuelToAdd = (int) Math.Ceiling( totalFuelThisStop );
-                }
-                else if( ( m_totalFuelRequired + e.TelemetryInfo.FuelLevel.Value ) <= m_maxFuel )
+                if( ( m_totalFuelRequired + e.TelemetryInfo.FuelLevel.Value ) <= m_maxFuel )
                 {
                     m_fuelToAdd = (int) Math.Ceiling( m_totalFuelRequired );
                 }
                 else
                 {
                     m_fuelToAdd = (int) Math.Ceiling( m_maxFuel - e.TelemetryInfo.FuelLevel.Value );
+                }
+
+                if( (cbUnits.SelectedIndex == Unit_Automatic && !m_is_metric_units) || cbUnits.SelectedIndex == Unit_UsCustomary )
+                {
+                    m_fuelToAdd = (int)Math.Ceiling(Math.Ceiling(m_fuelToAdd / LitresPerGallon) * LitresPerGallon);
                 }
             }
             else
@@ -268,13 +315,27 @@ namespace IrFuelCalc
 
         private void UpdateLabels()
         {
-            lblFuelLastLap.Text = m_fuelLastLap.ToString( "0.00", CultureInfo.InvariantCulture );
-            lblEstimatedLaps.Text = m_lapsRemaining.ToString();
-            lblEstimatedStops.Text = m_estimatedStops.ToString();
-            lblFuelMax.Text = m_maxFuel.ToString( "0.00", CultureInfo.InvariantCulture );
-            lblFuelPerLap.Text = m_fuelPerLap.ToString( "0.00", CultureInfo.InvariantCulture );
-            lblFuelReqTotal.Text = m_totalFuelRequired.ToString( "0.00", CultureInfo.InvariantCulture );
-            lblFuelToAdd.Text = m_fuelToAdd.ToString();
+            lblValueEstimatedLaps.Text = m_lapsRemaining.ToString();
+            lblValueEstimatedStops.Text = m_estimatedStops.ToString();
+
+            double divisor;
+            string unit;
+
+            if( (cbUnits.SelectedIndex == Unit_Automatic && m_is_metric_units) || cbUnits.SelectedIndex == Unit_Metric )
+            {
+                divisor = 1;
+                unit = "L";
+            } else
+            {
+                divisor = LitresPerGallon;
+                unit = "G";
+            }
+
+            lblValueFuelLastLap.Text = $"{m_fuelLastLap/divisor:0.00} {unit}";
+            lblValueFuelMax.Text = $"{m_maxFuel/divisor:0.00} {unit}";
+            lblValueFuelPerLap.Text = $"{m_fuelPerLap/divisor:0.00} {unit}";
+            lblValueFuelReqTotal.Text = $"{m_totalFuelRequired/divisor:0.00} {unit}";
+            lblValueFuelToAdd.Text = $"{m_fuelToAdd/divisor:0} {unit}";
         }
 
         private static double GetAvg( IEnumerable<double> data )
@@ -315,12 +376,17 @@ namespace IrFuelCalc
             m_logger.Debug( "Saving config" );
             var data = new IniData();
             data["settings"]["green_flag"] = cbOnlyGreen.Checked.ToString();
-            data["settings"]["spread_fuel"] = cbSpreadFuel.Checked.ToString();
+            data["settings"]["units"] = cbUnits.SelectedItem.ToString();
             data["settings"]["lap_offset"] = nudLapOffset.Value.ToString( CultureInfo.InvariantCulture );
             data["settings"]["fuel_mult"] = nudFuelMult.Value.ToString( CultureInfo.InvariantCulture );
 
             var parser = new FileIniDataParser();
             parser.WriteFile( CONFIG_FILE_S, data );
+        }
+
+        private void CbUnits_SelectedIndexChanged( object sender, EventArgs e )
+        {
+            m_logger.Debug( "Selected units changed to: {0}", cbUnits.SelectedItem.ToString() );
         }
     }
 }
